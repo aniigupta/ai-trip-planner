@@ -1,40 +1,98 @@
 "use client"
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { Send } from 'lucide-react'
-import React from 'react'
+import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
+import axios from "axios"
+import { Send } from "lucide-react"
+import { useState } from "react"
+
+type Message = {
+  role: string
+  content: string
+}
 
 function ChatBox() {
-    const onSend = () =>{
+  const [messages, setMessages] = useState<Message[]>([])
+  const [userInput, setUserInput] = useState<string>("")
+  const [loading, setLoading] = useState(false)
 
+  const onSend = async () => {
+    if (!userInput.trim() || loading) return
+
+    const newMsg: Message = {
+      role: "user",
+      content: userInput,
     }
-    return (
-        <div className='h-[85vh] flex flex-col'>
-            <section className='flex-1 overflow-auto p-4'>
-                <div className='flex justify-end mt-2'>
-                    <div className='max-w-lg bg-primary text-white px-4 py-2 rounded-lg'>
-                        User Msg
-                    </div>
-                </div>
-                <div className='flex justify-start mt-2'>
-                    <div className='max-w-lg bg-gray-100 text-black px-2 py-2 rounded-lg'>
-                        AI Agent Msg
-                    </div>
-                </div>
-            </section>
-            <section>
-                <div className='border rounded-2xl p-4 mt-10 flex w-full max-w-2xl shadow-lg bg-white'>
-                <Textarea
-                    placeholder='Create a trip for Paris from New Delhi'
-                    className='w-full h-28 bg-transparent border-none focus-visible:ring-0 shadow-none resize-none'
-                />
-                <Button size={'icon'} className='self-end ml-2' onClick={() => onSend()}>
-                    <Send />
-                </Button>
+
+    // add user's message and placeholder for AI
+    const thinkingMsg: Message = { role: "assistant", content: "Thinking..." }
+    setMessages((prev) => [...prev, newMsg, thinkingMsg])
+    setUserInput("")
+    setLoading(true)
+
+    try {
+      const res = await axios.post("/api/aimodel", {
+        messages: [...messages, newMsg],
+      })
+
+      const aiContent = res.data?.text || res.data?.resp || "No response"
+
+      // replace "Thinking..." with AI response
+      setMessages((prev) => {
+        const updated = [...prev]
+        updated[updated.length - 1] = { role: "assistant", content: aiContent }
+        return updated
+      })
+    } catch (err) {
+      console.error(err)
+      setMessages((prev) => {
+        const updated = [...prev]
+        updated[updated.length - 1] = {
+          role: "assistant",
+          content: "Something went wrong. Please try again.",
+        }
+        return updated
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="h-[85vh] flex flex-col">
+      {/* Messages Section */}
+      <section className="flex-1 overflow-auto p-4">
+        {messages.map((msg, i) => (
+          <div
+            key={i}
+            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} mt-2`}
+          >
+            <div
+              className={`max-w-lg px-4 py-2 rounded-lg ${
+                msg.role === "user" ? "bg-primary text-white" : "bg-gray-100 text-black"
+              }`}
+            >
+              { msg.content}
             </div>
-            </section>
+          </div>
+        ))}
+      </section>
+
+      {/* Input Section */}
+      <section>
+        <div className="border rounded-2xl p-4 mt-4 flex w-full max-w-2xl shadow-lg bg-white">
+          <Textarea
+            placeholder="Create a trip for Paris from New Delhi"
+            className="w-full h-28 bg-transparent border-none focus-visible:ring-0 shadow-none resize-none"
+            onChange={(e) => setUserInput(e.target.value)}
+            value={userInput}
+          />
+          <Button size="icon" className="self-end ml-2" onClick={onSend} disabled={loading}>
+            <Send />
+          </Button>
         </div>
-    )
+      </section>
+    </div>
+  )
 }
 
 export default ChatBox
