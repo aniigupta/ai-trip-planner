@@ -6,7 +6,7 @@ import { useUser } from '@clerk/nextjs';
 import { ArrowDown, Globe2, Heart, Landmark, Mountain, Send, Sparkles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
-const suggestions = [
+export const suggestions = [
     {
         title: 'Plan a relaxing beach vacation',
         icon: <Sparkles className='text-blue-400 h-5 w-5' />,

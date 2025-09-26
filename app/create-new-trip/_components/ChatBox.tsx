@@ -4,10 +4,12 @@ import { Textarea } from "@/components/ui/textarea"
 import axios from "axios"
 import { Send } from "lucide-react"
 import { useState } from "react"
+import EmptyBoxState from "./EmptyBoxState"
 
 type Message = {
   role: string
   content: string
+  ui?: string
 }
 
 function ChatBox() {
@@ -15,16 +17,13 @@ function ChatBox() {
   const [userInput, setUserInput] = useState<string>("")
   const [loading, setLoading] = useState(false)
 
-  const onSend = async () => {
-    if (!userInput.trim() || loading) return
+  const onSend = async (input?: string) => {
+    const content = input ?? userInput
+    if (!content.trim() || loading) return
 
-    const newMsg: Message = {
-      role: "user",
-      content: userInput,
-    }
-
-    // add user's message and placeholder for AI
+    const newMsg: Message = { role: "user", content }
     const thinkingMsg: Message = { role: "assistant", content: "Thinking..." }
+
     setMessages((prev) => [...prev, newMsg, thinkingMsg])
     setUserInput("")
     setLoading(true)
@@ -36,7 +35,6 @@ function ChatBox() {
 
       const aiContent = res.data?.text || res.data?.resp || "No response"
 
-      // replace "Thinking..." with AI response
       setMessages((prev) => {
         const updated = [...prev]
         updated[updated.length - 1] = { role: "assistant", content: aiContent }
@@ -57,21 +55,37 @@ function ChatBox() {
     }
   }
 
+  const RenderGenrativeUi = (ui:string) =>{
+    if(ui== 'buget'){
+
+    } else if (ui == 'groupSize'){
+
+    }
+  }
+  
   return (
     <div className="h-[85vh] flex flex-col">
+      {messages.length === 0 && (
+        <EmptyBoxState onSelectOption={(v: string) => onSend(v)} />
+      )}
+
       {/* Messages Section */}
       <section className="flex-1 overflow-auto p-4">
         {messages.map((msg, i) => (
           <div
             key={i}
-            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} mt-2`}
+            className={`flex ${
+              msg.role === "user" ? "justify-end" : "justify-start"
+            } mt-2`}
           >
             <div
               className={`max-w-lg px-4 py-2 rounded-lg ${
-                msg.role === "user" ? "bg-primary text-white" : "bg-gray-100 text-black"
+                msg.role === "user"
+                  ? "bg-primary text-white"
+                  : "bg-gray-100 text-black"
               }`}
             >
-              { msg.content}
+              {msg.content}
             </div>
           </div>
         ))}
@@ -86,7 +100,12 @@ function ChatBox() {
             onChange={(e) => setUserInput(e.target.value)}
             value={userInput}
           />
-          <Button size="icon" className="self-end ml-2" onClick={onSend} disabled={loading}>
+          <Button
+            size="icon"
+            className="self-end ml-2"
+            onClick={() => onSend()}
+            disabled={loading}
+          >
             <Send />
           </Button>
         </div>
