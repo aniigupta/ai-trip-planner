@@ -4,7 +4,9 @@ import { Textarea } from "@/components/ui/textarea"
 import axios from "axios"
 import { Send } from "lucide-react"
 import { useState } from "react"
+import BudgetUi from "./BudgetUi"
 import EmptyBoxState from "./EmptyBoxState"
+import GroupSizeUi from "./GroupSizeUi"
 
 type Message = {
   role: string
@@ -55,14 +57,15 @@ function ChatBox() {
     }
   }
 
-  const RenderGenrativeUi = (ui:string) =>{
-    if(ui== 'buget'){
-
-    } else if (ui == 'groupSize'){
-
+  const RenderGenerativeUi = (ui: string) => {
+    if (ui == 'budget') {
+      return <BudgetUi onSelectedOption={(v: string) => { setUserInput(v); onSend(v) }} />
+    } else if (ui == 'groupSize') {
+      return <GroupSizeUi onSelectedOption={(v: string) => { setUserInput(v); onSend(v) }} />
     }
+    return null
   }
-  
+
   return (
     <div className="h-[85vh] flex flex-col">
       {messages.length === 0 && (
@@ -74,18 +77,18 @@ function ChatBox() {
         {messages.map((msg, i) => (
           <div
             key={i}
-            className={`flex ${
-              msg.role === "user" ? "justify-end" : "justify-start"
-            } mt-2`}
+            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"
+              } mt-2`}
           >
             <div
-              className={`max-w-lg px-4 py-2 rounded-lg ${
-                msg.role === "user"
-                  ? "bg-primary text-white"
-                  : "bg-gray-100 text-black"
-              }`}
+              className={`max-w-lg px-4 py-2 rounded-lg ${msg.role === "user"
+                ? "bg-primary text-white"
+                : "bg-gray-100 text-black"
+                }`}
             >
               {msg.content}
+              {RenderGenerativeUi(msg.ui ?? '')}
+
             </div>
           </div>
         ))}
