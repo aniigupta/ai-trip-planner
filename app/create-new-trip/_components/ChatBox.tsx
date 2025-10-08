@@ -1,172 +1,130 @@
 "use client";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+
+import React, { useState } from "react";
 import axios from "axios";
-import { Send } from "lucide-react";
-import { useEffect, useState } from "react";
-import BudgetUi from "./BudgetUi";
-import EmptyBoxState from "./EmptyBoxState";
-import GroupSizeUi from "./GroupSizeUi";
-import SelectDaysUi from "./SelectDaysUi";
-import FinalUi from "./FinalUi";
+import { v4 as uuidv4 } from "uuid";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
+import { Button } from "@/components/ui/button";
 
-type Message = {
-  role: string;
+interface Message {
+  role: "user" | "assistant";
   content: string;
-  ui?: string;
-};
-
-export type TripInfo={
-  budget:string,
-  destination:string,
-  duration:string,
-  group_size:string,
-  origin:string,
-  hotels:any,
-  itinerary:any
 }
 
-function ChatBox() {
+interface UserDetail {
+  _id: string;
+  name?: string;
+  email?: string;
+}
+
+const ChatBox = ({ userDetail }: { userDetail: UserDetail }) => {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [userInput, setUserInput] = useState<string>("");
+  const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [isFinal, setIsFinal] = useState(false);
-  const [tripDetail, setTripDetail] = useState<TripInfo>();
+  const [tripDetail, setTripDetail] = useState<any>(null);
 
-  const onSend = async (input?: string) => {
-    const content = input ?? userInput;
-    if (!content.trim() || loading) return;
+  const SaveTripDetail = useMutation(api.tripDetail.CreateTripDetail);
 
-    const newMsg: Message = { role: "user", content };
-    const thinkingMsg: Message = { role: "assistant", content: "Thinking..." };
 
-    // If it's not the final step, continue showing normal message flow
-    if (!isFinal) {
-      setMessages((prev) => [...prev, newMsg, thinkingMsg]);
-    }
-
-    setUserInput("");
+  const handleSend = async () => {
+    if (!input.trim()) return;
+    setMessages((prev) => [...prev, { role: "user", content: input }]);
+    setInput("");
     setLoading(true);
 
     try {
-      const res = await axios.post("/api/aimodel", {
-        messages: [...messages, newMsg],
-        isFinal: isFinal,
+      const result = await axios.post("/api/ai", {
+        message: input,
       });
 
-      const result = res.data;
-      const aiContent = result?.text || result?.resp || "No response";
+      const content = result?.data?.resp;
+      const isFinalResponse = result?.data?.isFinal || false;
 
-      if (!isFinal) {
-        // 🧠 Update the last assistant message with AI content
-        setMessages((prev) => {
-          const updated = [...prev];
-          updated[updated.length - 1] = {
-            role: "assistant",
-            content: aiContent,
-            ui: result?.ui, // optional: AI decides next UI step
-          };
-          return updated;
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content,
+        },
+      ]);
+
+      // When final trip plan is generated
+      if (isFinalResponse) {
+        const tripData = result?.data?.trip_plan;
+        const tripId = uuidv4();
+
+        setTripDetail(tripData);
+        setIsFinal(true);
+        setLoading(false);
+
+        // Save to Convex
+        await SaveTripDetail({
+          tripId,
+          uid: userDetail?._id as Id<"UserTable">,
+          tripDetail: tripData,
         });
       } else {
-        // ✅ When the trip is finalized
-        setTripDetail(result?.trip_plan);
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: "Your trip has been planned successfully!" },
-        ]);
+        setLoading(false);
       }
-    } catch (err) {
-      console.error(err);
-      setMessages((prev) => {
-        const updated = [...prev];
-        updated[updated.length - 1] = {
-          role: "assistant",
-          content: "Something went wrong. Please try again.",
-        };
-        return updated;
-      });
-    } finally {
+    } catch (error) {
+      console.error("Error generating trip:", error);
       setLoading(false);
     }
   };
 
-  // 🌟 Render dynamic UI components depending on AI's next step
-  const RenderGenerativeUi = (ui: string) => {
-    switch (ui) {
-      case "budget":
-        return <BudgetUi onSelectedOption={(v: string) => onSend(v)} />;
-      case "groupSize":
-        return <GroupSizeUi onSelectedOption={(v: string) => onSend(v)} />;
-      case "selectDays":
-        return <SelectDaysUi onSelectedOption={(v: string) => onSend(v)} />;
-      case "final":
-        return <FinalUi viewTrip={() => console.log("Viewing trip...")}
-          disable={!tripDetail} />;
-      default:
-        return null;
-    }
-  };
-
-  //  When UI = 'final', automatically trigger final trip generation
-  useEffect(() => {
-    const lastMsg = messages[messages.length - 1];
-    if (lastMsg?.ui === "final") {
-      setIsFinal(true);
-      setUserInput("ok great");
-      onSend("ok great");
-    }
-  }, [messages]);
-
   return (
-    <div className="h-[85vh] flex flex-col">
-      {/* Empty chat state */}
-      {messages.length === 0 && (
-        <EmptyBoxState onSelectOption={(v) => onSend(v)} />
-      )}
-
-      {/* Messages Section */}
-      <section className="flex-1 overflow-auto p-4">
-        {messages.map((msg, i) => (
+    <div className="flex flex-col w-full max-w-2xl mx-auto bg-white shadow-md rounded-xl p-4 mt-6">
+      <div className="flex flex-col gap-3 h-[400px] overflow-y-auto border-b pb-4">
+        {messages.map((msg, index) => (
           <div
-            key={i}
-            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"
-              } mt-2`}
+            key={index}
+            className={`p-3 rounded-xl ${
+              msg.role === "user"
+                ? "bg-primary text-white self-end"
+                : "bg-gray-100 text-gray-800 self-start"
+            }`}
           >
-            <div
-              className={`max-w-lg px-4 py-2 rounded-lg ${msg.role === "user"
-                  ? "bg-primary text-white"
-                  : "bg-gray-100 text-black"
-                }`}
-            >
-              {msg.content}
-              {RenderGenerativeUi(msg.ui ?? "")}
-            </div>
+            {msg.content}
           </div>
         ))}
-      </section>
+        {loading && (
+          <div className="text-gray-500 italic text-sm animate-pulse">
+            AI is thinking...
+          </div>
+        )}
+      </div>
 
-      {/* Input Section */}
-      <section>
-        <div className="border rounded-2xl p-4 mt-4 flex w-full max-w-2xl shadow-lg bg-white">
-          <Textarea
-            placeholder="Create a trip for Paris from New Delhi"
-            className="w-full h-28 bg-transparent border-none focus-visible:ring-0 shadow-none resize-none"
-            onChange={(e) => setUserInput(e.target.value)}
-            value={userInput}
+      {!isFinal && (
+        <div className="flex items-center gap-2 mt-4">
+          <input
+            type="text"
+            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-primary"
+            placeholder="Ask about your dream trip..."
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSend()}
           />
-          <Button
-            size="icon"
-            className="self-end ml-2"
-            onClick={() => onSend()}
-            disabled={loading}
-          >
-            <Send />
+          <Button onClick={handleSend} disabled={loading}>
+            Send
           </Button>
         </div>
-      </section>
+      )}
+
+      {isFinal && tripDetail && (
+        <div className="mt-6 bg-gray-50 p-4 rounded-xl shadow-inner">
+          <h2 className="text-lg font-semibold text-primary mb-2">
+            🎯 Your Trip Plan
+          </h2>
+          <pre className="text-sm text-gray-700 whitespace-pre-wrap">
+            {JSON.stringify(tripDetail, null, 2)}
+          </pre>
+        </div>
+      )}
     </div>
   );
-}
+};
 
 export default ChatBox;
